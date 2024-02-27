@@ -2,7 +2,10 @@ import streamlit as st
 import pickle
 import requests
 from fuzzywuzzy import process
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.neighbors import NearestNeighbors
 
+# Function to fetch movie poster using TMDB API
 def fetch_poster(movie_id):
     url = "https://api.themoviedb.org/3/movie/{}?api_key=c7ec19ffdd3279641fb606d19ceb9bb1&language=en-US".format(movie_id)
     data = requests.get(url).json()
@@ -10,36 +13,22 @@ def fetch_poster(movie_id):
     full_path = "https://image.tmdb.org/t/p/w500/" + poster_path
     return full_path
 
+# Load movie data and similarity matrix
 movies = pickle.load(open("movies_list.pkl", 'rb'))
 similarity = pickle.load(open("similarity.pkl", 'rb'))
 movies_list = movies['title'].values
 
+# Load TF-IDF vectorizer and KNN model
+tfidf_vectorizer = pickle.load(open('tfidf_vectorizer.pkl', 'rb'))
+knn_model = pickle.load(open('knn_model.pkl', 'rb'))
+
+# Streamlit app header
 st.header("Movie Recommender System")
 
-import streamlit.components.v1 as components
-
-imageCarouselComponent = components.declare_component("image-carousel-component", path="frontend/public")
-
-imageUrls = [
-    fetch_poster(1632),
-    fetch_poster(299536),
-    fetch_poster(17455),
-    fetch_poster(2830),
-    fetch_poster(429422),
-    fetch_poster(9722),
-    fetch_poster(13972),
-    fetch_poster(240),
-    fetch_poster(155),
-    fetch_poster(598),
-    fetch_poster(914),
-    fetch_poster(255709),
-    fetch_poster(572154)
-]
-
-imageCarouselComponent(imageUrls=imageUrls, height=200)
-
+# Radio button for search option
 search_option = st.radio("Choose search option:", ("Manual Search", "Dropdown"))
 
+# Manual search text input
 if search_option == "Manual Search":
     manual_search = st.text_input("Enter movie title for manual search:")
     selectvalue = None  # Set selectvalue to None for later check
@@ -47,20 +36,18 @@ else:
     manual_search = None  # Set manual_search to None for later check
     selectvalue = st.selectbox("Select movie from dropdown", movies_list)
 
+# Function to recommend similar movies using KNN
 def recommend(movie):
     if movie and movie.lower() in map(str.lower, movies['title'].values):
         index = movies[movies['title'].str.lower() == movie.lower()].index[0]
-        distance = sorted(list(enumerate(similarity[index])), reverse=True, key=lambda vector: vector[1])
-        recommend_movie = []
-        recommend_poster = []
-        for i in distance[1:11]:
-            movies_id = movies.iloc[i[0]].id
-            recommend_movie.append(movies.iloc[i[0]].title)
-            recommend_poster.append(fetch_poster(movies_id))
+        distances, indices = knn_model.kneighbors(tfidf_vectorizer.transform([movies.iloc[index]['tags']]))
+        recommend_movie = movies.iloc[indices[0]].title.tolist()[1:]
+        recommend_poster = [fetch_poster(movie_id) for movie_id in movies.iloc[indices[0]].id.tolist()[1:]]
         return recommend_movie, recommend_poster
     else:
         return [], []
 
+# Function for fuzzy search
 def fuzzy_search(movie):
     choices = movies['title'].values
     match, score = process.extractOne(movie, choices)
@@ -69,6 +56,7 @@ def fuzzy_search(movie):
     else:
         return None
 
+# Button to show recommendations
 if st.button("Show Recommend"):
     if selectvalue:
         movie_name, movie_poster = recommend(selectvalue)
@@ -76,25 +64,12 @@ if st.button("Show Recommend"):
         movie_name, movie_poster = recommend(manual_search.lower())
 
     if movie_name:
-        col1, col2, col3, col4, col5 = st.columns(5)
-        with col1:
-            st.text(movie_name[0])
-            st.image(movie_poster[0], width=150, caption=movie_name[0])
-        with col2:
-            st.text(movie_name[1])
-            st.image(movie_poster[1], width=150, caption=movie_name[1])
-        with col3:
-            st.text(movie_name[2])
-            st.image(movie_poster[2], width=150, caption=movie_name[2])
-        with col4:
-            st.text(movie_name[3])
-            st.image(movie_poster[3], width=150, caption=movie_name[3])
-        with col5:
-            st.text(movie_name[4])
-            st.image(movie_poster[4], width=150, caption=movie_name[4])
-      
-    
+        # Display recommended movies and posters
+        for name, poster in zip(movie_name, movie_poster):
+            st.text(name)
+            st.image(poster, width=150, caption=name)
 
+# Button to show recommendations for manual search
 if st.button("Show Recommend (Manual Search)"):
     if manual_search:
         movie_name_manual, movie_poster_manual = recommend(manual_search.lower())
@@ -109,20 +84,7 @@ if st.button("Show Recommend (Manual Search)"):
             movie_name_manual, movie_poster_manual = recommend(fuzzy_match.lower())
     
     if movie_name_manual:
-        col1, col2, col3, col4, col5 = st.columns(5)
-        with col1:
-            st.text(movie_name_manual[0])
-            st.image(movie_poster_manual[0], width=150, caption=movie_name_manual[0])
-        with col2:
-            st.text(movie_name_manual[1])
-            st.image(movie_poster_manual[1], width=150, caption=movie_name_manual[1])
-        with col3:
-            st.text(movie_name_manual[2])
-            st.image(movie_poster_manual[2], width=150, caption=movie_name_manual[2])
-        with col4:
-            st.text(movie_name_manual[3])
-            st.image(movie_poster_manual[3], width=150, caption=movie_name_manual[3])
-        with col5:
-            st.text(movie_name_manual[4])
-            st.image(movie_poster_manual[4], width=150, caption=movie_name_manual[4])
-       
+        # Display recommended movies and posters for manual search
+        for name, poster in zip(movie_name_manual, movie_poster_manual):
+            st.text(name)
+            st.image(poster, width=150, caption=name)
