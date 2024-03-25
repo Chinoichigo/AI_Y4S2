@@ -6,6 +6,12 @@ import matplotlib.pyplot as plt
 from fuzzywuzzy import process
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
+import streamlit.components.v1 as components
+
+
+
+
+
 
 # Function to fetch movie poster using TMDB API
 def fetch_poster(movie_id):
@@ -15,6 +21,11 @@ def fetch_poster(movie_id):
     full_path = "https://image.tmdb.org/t/p/w500/" + poster_path
     return full_path
 
+
+
+
+
+
 # Load movie data and similarity matrix
 movies = pickle.load(open("movies_list.pkl", 'rb'))
 similarity = pickle.load(open("similarity.pkl", 'rb'))
@@ -23,6 +34,28 @@ movies_list = movies['title'].values
 # Load TF-IDF vectorizer and KNN model
 tfidf_vectorizer = pickle.load(open('tfidf_vectorizer.pkl', 'rb'))
 knn_model = pickle.load(open('knn_model.pkl', 'rb'))
+
+imageCarouselComponent = components.declare_component("image-carousel-component", path="frontend/public")
+
+imageUrls = [
+    fetch_poster(507569),
+    fetch_poster(635302),
+    fetch_poster(225745),
+    fetch_poster(42994),
+    fetch_poster(429422),
+    fetch_poster(9722),
+    fetch_poster(13972),
+    fetch_poster(240),
+    fetch_poster(155),
+    fetch_poster(598),
+    fetch_poster(914),
+    fetch_poster(255709),
+    fetch_poster(572154)
+]
+
+imageCarouselComponent(imageUrls=imageUrls, height=200) 
+
+
 
 # Function to recommend similar movies using KNN
 def recommend(movie):
